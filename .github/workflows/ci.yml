@@ -23,6 +23,11 @@ jobs:
         test -f configs/decision_config.json
         test -f models/calibrated_xgb.pkl
 
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
     - name: Test API loads
       run: |
         python -c "from src.api.app import app; print('API loaded successfully')"
@@ -34,11 +39,6 @@ jobs:
     - name: Build Docker image
       run: |
         docker build -t churn-api:test .
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
 
     - name: Install dev dependencies
       run: |
