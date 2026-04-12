@@ -11,3 +11,6 @@ seaborn
 fastapi
 uvicorn
 pydantic
+joblib
+pytest
+httpx

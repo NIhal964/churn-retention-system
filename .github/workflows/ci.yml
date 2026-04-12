@@ -40,7 +40,10 @@ jobs:
       run: |
         docker build -t churn-api:test .
 
+    - name: Install dev dependencies
+      run: |
+        pip install -r requirements-dev.txt
+
     - name: Run tests
       run: |
-        pip install pytest
         pytest tests/
