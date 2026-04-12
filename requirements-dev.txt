@@ -2,8 +2,12 @@ pandas
 numpy
 scikit-learn
 xgboost
+mlflow
 pyyaml
+shap
+pytest
+matplotlib
+seaborn
 fastapi
 uvicorn
 pydantic
-joblib

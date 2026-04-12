@@ -1,0 +1,10 @@
+campaign:
+  contact_cost: 5
+  discount: 50
+  rescue_rate: 0.2
+
+value_proxy:
+  horizon_months: 12
+
+targeting:
+  max_budget: 0.5

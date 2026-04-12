@@ -1,0 +1,6 @@
+{
+    "score_threshold": 535.7407866239547,
+    "budget_pct": 0.15,
+    "rescue_rate": 0.3,
+    "policy": "score_risk_value"
+}
