@@ -1,6 +1,9 @@
 from fastapi import FastAPI,HTTPException
 import pandas as pd
 import logging
+import json
+import os
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -9,7 +12,9 @@ from src.api.schemas import CustomerFeatures, DecisionResponse
 from src.api.model import load_model
 from src.config import load_config
 # From your pipeline output
-import json
+
+LOG_FILE = "logs/predictions.jsonl"
+os.makedirs("logs", exist_ok=True)
 
 with open("configs/decision_config.json") as f:
     decision_config = json.load(f)
@@ -76,6 +81,16 @@ def decision(customer: CustomerFeatures):
         else:
             reason = "Below targeting threshold"
 
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "input": customer.model_dump(by_alias=True),
+            "churn_probability": float(prob),
+            "score": float(score),
+            "decision": decision
+        }
+        with open(LOG_FILE, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+
         return DecisionResponse(
             churn_probability=round(float(prob), 4),
             value_proxy=round(value_proxy, 2),
@@ -89,8 +104,4 @@ def decision(customer: CustomerFeatures):
 
     except Exception as e:
         logger.error(f"Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-    except Exception as e:
-        logger.error(f"Error occurred while making prediction: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

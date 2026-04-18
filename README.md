@@ -1,241 +1,280 @@
-# Customer Churn Retention Optimization System
+# 💡 Value-Aware Churn Optimization & Decision System
 
-A decision-focused machine learning system designed to **maximize retained revenue from customer retention campaigns under budget constraints**.
+## 🚀 Overview
 
-Unlike typical churn projects that stop at prediction accuracy, this system connects churn predictions to **real business decisions** by evaluating how different targeting strategies impact expected profit.
+Traditional churn models answer:
 
----
+> “Who will churn?”
 
-# Problem
+This system answers a more important question:
 
-Retention teams often face the question:
+> **“Who should we target to maximize retained revenue under budget constraints?”**
 
-> Given a limited retention budget, which customers should we target to maximize saved revenue?
-
-A churn prediction model alone cannot answer this.  
-This project combines **churn prediction, customer value estimation, and economic simulation** to determine the most profitable retention strategy.
+By integrating **churn prediction, customer value, and campaign economics**, this system transforms predictions into **profit-driven decisions**.
 
 ---
 
-# System Architecture
+## 📊 Key Results
 
-The project is organized into three layers:
-Data → Modeling → Decision
-.
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # CI pipeline (tests, validation checks)
-│
-├── configs/                        # Configuration files
-│
-├── data/
-│   ├── raw/                        # Original dataset
-│   ├── interim/                    # Intermediate artifacts
-│   └── processed/                  # Cleaned and split datasets
-│
-├── src/
-│   ├── data/
-│   │   ├── load.py                 # Load raw dataset
-│   │   ├── validate.py             # Data validation checks
-│   │   └── split.py                # Train / validation / test split
-│   │
-│   ├── features/
-│   │   ├── schema.py               # Feature schema and dropped columns
-│   │   └── build.py                # Feature engineering pipeline
-│   │
-│   ├── modeling/
-│   │   ├── train.py                # Train models (Logistic + XGBoost)
-│   │   ├── calibrate.py            # Probability calibration
-│   │   ├── predict.py              # Generate churn predictions
-│   │   └── evaluate.py             # Ranking metrics (Precision@K, Lift)
-│   │
-│   ├── decisioning/
-│   │   ├── value.py                # Customer value proxy calculation
-│   │   ├── policy.py               # Retention targeting policies
-│   │   ├── profit_curve.py         # Profit vs targeting budget simulation
-│   │   ├── rescue_sensitivity.py   # Profit vs rescue rate analysis
-│   │   └── profit_heatmap.py       # Budget × rescue rate profit heatmap
-│   │
-│   └── monitoring/
-│       ├── drift.py                # Data / prediction drift detection
-│       └── reports.py              # Monitoring and evaluation reports
-│
-├── notebooks/
-│   └── 01_eda.ipynb                # Exploratory data analysis
-│
-├── requirements.txt                # Project dependencies
-├── .gitignore
-└── README.md
+* ~**3× lift** in retained value within top-decile targeting
+* ~**5–10% higher expected profit** vs probability-only targeting
+* **Break-even rescue rate:** ~8–10%
+* Optimal targeting range: **10–15% of customers**
 
-This structure separates **data processing, model development, and business decision logic**, similar to production ML systems.
+👉 Demonstrates that **value-aware targeting significantly improves ROI**
 
 ---
 
-# Dataset
+## 🧠 Core Idea
 
-Telecom churn dataset containing customer attributes such as:
+```text
+Prediction ≠ Decision
+```
 
-- tenure
-- contract type
-- internet service
-- monthly charges
-- payment method
-- service subscriptions
+A high churn probability customer is not always worth targeting.
 
-Target variable:
-Churn Value
+We use:
 
-Leakage-prone columns such as **CLTV, churn reason, and churn score** were removed to ensure realistic modeling.
+```text
+Decision Score = churn_probability × value_proxy
+```
 
----
-
-# Modeling
-
-Two models were evaluated:
-
-### Logistic Regression (baseline)
-ROC-AUC ≈ 0.856
-PR-AUC ≈ 0.675
-
-
-### XGBoost (final model)
-ROC-AUC ≈ 0.858
-PR-AUC ≈ 0.682
-
-XGBoost was selected due to **better ranking performance for retention targeting**.
+to prioritize **high-value, persuadable customers**
 
 ---
 
-# Probability Calibration
+## 🏗️ System Architecture
 
-Tree models often produce poorly calibrated probabilities.
+```text
+Data Pipeline → Model → Calibration → Decision Layer → API → Monitoring
+```
 
-Predictions were calibrated using **Isotonic Regression** to ensure reliable probabilities for decision simulations.
+### Layers
 
-Calibrated ROC-AUC ≈ 0.859
-Brier Score ≈ 0.13
-
-
----
-
-# Ranking Performance
-
-Retention campaigns target only a small fraction of customers, so ranking quality is critical.
-
-Example results:
-Precision@5% ≈ 0.83
-Precision@10% ≈ 0.79
-Recall@10% ≈ 0.30
-Lift@10% ≈ 2.98
-
-The model captures **nearly 3× more churners than random targeting** in the top 10%.
+* **Data Pipeline** → ingestion, validation, splitting
+* **Modeling** → churn prediction (XGBoost)
+* **Calibration** → reliable probabilities (Isotonic Regression)
+* **Decision Layer** → profit-aware targeting
+* **API** → FastAPI deployment
+* **Monitoring** → drift detection using baseline comparison
 
 ---
 
-# Retention Targeting Policies
+## ⚙️ Data Pipeline
 
-Three targeting strategies were evaluated.
+Modular pipeline design:
 
-### Risk-Only
-Score = P(churn)
+```text
+src/data/
+  ├── load.py
+  ├── validate.py
+  ├── split.py
+  └── prepare.py
+```
 
-Targets customers with the highest churn probability.
+Ensures:
 
-### Risk × Value
-Score = P(churn) × ValueProxy
-
-Prioritizes **high-value customers at risk of leaving**.
-
-### Sensitivity-Weighted
-Score = P(churn) × ValueProxy × W(p)
-
-Downweights customers extremely unlikely to churn or already too likely to leave.
+* reproducibility
+* clean train/test separation
+* leakage prevention
 
 ---
 
-# Economic Simulation
+## 🤖 Modeling
 
-Retention campaigns incur costs such as:
+### Models Evaluated
 
-- contact cost
-- discount incentives
+* Logistic Regression (baseline)
+* XGBoost (final)
 
-Expected profit is estimated as:
-ExpectedProfit =
+### Final Model Performance
+
+* ROC-AUC: **0.86**
+* PR-AUC: **0.68**
+
+👉 Selected for strong ranking performance
+
+---
+
+## 📉 Probability Calibration
+
+Tree models are often miscalibrated.
+
+Applied **Isotonic Regression**:
+
+* Calibrated ROC-AUC: **0.859**
+* Brier Score: **0.13**
+
+👉 Enables reliable **financial decision-making**
+
+---
+
+## 📊 Ranking Performance
+
+Retention campaigns target a small fraction of users.
+
+* Precision@5%: **0.83**
+* Precision@10%: **0.79**
+* Lift@10%: **~3×**
+
+👉 Model identifies significantly more churners than random targeting
+
+---
+
+## 💰 Decision Layer
+
+### Policies
+
+* Risk-only → P(churn)
+* Risk × Value → P(churn) × ValueProxy
+* Weighted strategy → penalizes extreme cases
+
+### Insight
+
+```text
+Value-aware targeting consistently outperforms probability-only strategies
+```
+
+---
+
+## 📈 Economic Simulation
+
+Expected profit:
+
+```text
+Expected Profit =
 Σ(P(churn) × ValueProxy × rescue_rate)
-− CampaignCost
+− Campaign Cost
+```
 
-Where **rescue rate** represents campaign effectiveness.
+Simulates:
+
+* budget constraints
+* rescue rate
+* campaign cost
 
 ---
 
-# Key Analyses
+## 🔍 Key Analyses
 
 ### Profit vs Budget
 
-Evaluates how campaign profitability changes with targeting size.
-
-Insight:
-Value-aware targeting outperforms risk-only targeting.
-
----
+* Shows optimal targeting size (~10–15%)
 
 ### Profit vs Rescue Rate
 
-Measures sensitivity to campaign effectiveness.
-
-Insight:
-Break-even rescue rate ≈ 8–10%
-
-Campaigns below this effectiveness lose money.
-
----
+* Break-even: ~8–10%
 
 ### Profit Heatmap
 
-Visualizes expected profit across:
-Targeting Budget × Rescue Rate
-
-
-This identifies the **safe operating region for retention campaigns**.
-
-Example insight:
-
-
-Budget: 12–15%
-Rescue Rate ≥ 30%
-→ strong profitability
-
+* Identifies profitable operating regions
 
 ---
 
-# Key Business Insights
+## 🚀 Deployment
 
-- Value-aware targeting significantly improves retention ROI
-- Targeting ~10–15% of customers captures most recoverable value
-- Campaign effectiveness must exceed ~8–10% to break even
-- High-value customers should be prioritized even if churn risk is slightly lower
+### API
 
----
+```bash
+uvicorn src.api.app:app --reload
+```
 
-# Technologies
+### Docker
 
-
-Python
-Pandas
-Scikit-learn
-XGBoost
-NumPy
-Matplotlib
-
+```bash
+docker build -t churn-api .
+docker run -p 8000:8000 churn-api
+```
 
 ---
 
-# Future Improvements
+## 🔁 CI/CD
 
-Planned extensions include:
+Implemented using **GitHub Actions**
 
-- MLflow experiment tracking
-- CI/CD pipelines with GitHub Actions
-- Dockerized inference
-- model monitoring and automated retraining
+Validates:
+
+* dependencies
+* API startup
+* test cases
+* Docker build
+
+👉 Ensures reliable and reproducible deployments
+
+---
+
+## 📊 Monitoring
+
+Tracks:
+
+* prediction distribution (churn probability)
+* feature distribution (e.g., Monthly Charges)
+* % high-risk customers
+
+### Approach
+
+* Baseline saved during training
+* Live predictions compared to baseline
+
+Example:
+
+```text
+Current avg churn probability: 0.1700
+Baseline avg churn probability: 0.2667
+⚠ Drift detected
+```
+
+👉 Enables early detection of data and prediction drift
+
+---
+
+## 🧪 Testing
+
+```bash
+pytest tests/
+```
+
+Validates:
+
+* API availability
+* prediction behavior (high vs low churn)
+
+---
+
+## 📁 Project Structure
+
+```text
+src/
+  ├── api/
+  ├── data/
+  ├── features/
+  ├── modeling/
+  ├── decisioning/
+  ├── pipeline/
+  └── monitoring/
+```
+
+---
+
+## ⚠️ Limitations
+
+* Uses value proxy instead of full CLTV
+* Simulation assumes fixed rescue rate
+* Drift detection based on statistical thresholds
+
+---
+
+## 🔮 Future Work
+
+* uplift modeling (causal targeting)
+* automated retraining pipelines
+* advanced monitoring (Prometheus/Grafana)
+
+---
+
+## 🧠 Key Takeaways
+
+* Optimize **profit**, not just accuracy
+* Calibration is critical for decisions
+* Decision layer > prediction alone
+* Monitoring is essential for production ML

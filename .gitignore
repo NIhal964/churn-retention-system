@@ -12,7 +12,14 @@ mlflow.db
 
 # Outputs
 *.csv
-reports/*.png
+reports/*
+results/*
+
+!results/policy_comparison.csv
+!results/calibration_curve.png
+!results/shap_importance.png
+!results/shap_summary.png
+!results/threshold_results.csv
 
 # Notebooks
 notebooks/

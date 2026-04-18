@@ -54,6 +54,20 @@ def run_pipeline(model_type="xgboost", calibration="isotonic"):
 
         pred_df.to_csv("data/predictions/test_predictions.csv", index=False)
 
+        baseline = {
+            "avg_churn_prob": float(probs.mean()),
+            "std_churn_prob": float(probs.std()),
+            "avg_monthly_charges": float(X_test["Monthly Charges"].mean()),
+            "std_monthly_charges": float(X_test["Monthly Charges"].std())
+        }
+
+        os.makedirs("configs", exist_ok=True)
+        with open("configs/monitoring_baseline.json", "w", encoding="utf-8") as f:
+            json.dump(baseline, f, indent=4)
+
+        print("\nSaved monitoring baseline:")
+        print(baseline)
+
         # -----------------------------
         # 4. Ranking Metrics
         # -----------------------------
@@ -105,8 +119,6 @@ def run_pipeline(model_type="xgboost", calibration="isotonic"):
     budget_pct=best["budget_pct"],
     rescue_rate=best["rescue_rate"]
 )
-        import json
-        import os
 
         os.makedirs("configs", exist_ok=True)
 
