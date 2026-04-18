@@ -23,6 +23,24 @@ By integrating **churn prediction, customer value, and campaign economics**, thi
 
  Demonstrates that **value-aware targeting significantly improves ROI**
 
+## 📊 Policy Comparison
+
+![Policy Comparison](assets/policy_comparison.png)
+
+Value-aware targeting significantly outperforms probability-only targeting in expected profit.
+
+## 📈 Profit vs Budget
+
+![Profit vs Budget](assets/profit_vs_budget.png)
+
+Optimal targeting occurs around 10–15% of customers, balancing cost and expected return.
+
+## 🎯 Threshold Optimization
+
+![Threshold Curve](assets/threshold_curve.png)
+
+Profit-based threshold selection avoids arbitrary cutoff decisions.
+
 ---
 
 ## Core Idea
