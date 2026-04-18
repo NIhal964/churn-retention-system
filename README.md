@@ -1,6 +1,6 @@
-# 💡 Value-Aware Churn Optimization & Decision System
+#  Value-Aware Churn Optimization & Decision System
 
-## 🚀 Overview
+##  Overview
 
 Traditional churn models answer:
 
@@ -14,18 +14,18 @@ By integrating **churn prediction, customer value, and campaign economics**, thi
 
 ---
 
-## 📊 Key Results
+##  Key Results
 
 * ~**3× lift** in retained value within top-decile targeting
 * ~**5–10% higher expected profit** vs probability-only targeting
 * **Break-even rescue rate:** ~8–10%
 * Optimal targeting range: **10–15% of customers**
 
-👉 Demonstrates that **value-aware targeting significantly improves ROI**
+ Demonstrates that **value-aware targeting significantly improves ROI**
 
 ---
 
-## 🧠 Core Idea
+## Core Idea
 
 ```text
 Prediction ≠ Decision
@@ -43,7 +43,7 @@ to prioritize **high-value, persuadable customers**
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 ```text
 Data Pipeline → Model → Calibration → Decision Layer → API → Monitoring
@@ -60,7 +60,7 @@ Data Pipeline → Model → Calibration → Decision Layer → API → Monitorin
 
 ---
 
-## ⚙️ Data Pipeline
+##  Data Pipeline
 
 Modular pipeline design:
 
@@ -80,7 +80,7 @@ Ensures:
 
 ---
 
-## 🤖 Modeling
+##  Modeling
 
 ### Models Evaluated
 
@@ -92,11 +92,11 @@ Ensures:
 * ROC-AUC: **0.86**
 * PR-AUC: **0.68**
 
-👉 Selected for strong ranking performance
+ Selected for strong ranking performance
 
 ---
 
-## 📉 Probability Calibration
+##  Probability Calibration
 
 Tree models are often miscalibrated.
 
@@ -105,7 +105,7 @@ Applied **Isotonic Regression**:
 * Calibrated ROC-AUC: **0.859**
 * Brier Score: **0.13**
 
-👉 Enables reliable **financial decision-making**
+ Enables reliable **financial decision-making**
 
 ---
 
@@ -117,11 +117,11 @@ Retention campaigns target a small fraction of users.
 * Precision@10%: **0.79**
 * Lift@10%: **~3×**
 
-👉 Model identifies significantly more churners than random targeting
+Model identifies significantly more churners than random targeting
 
 ---
 
-## 💰 Decision Layer
+##  Decision Layer
 
 ### Policies
 
@@ -155,7 +155,7 @@ Simulates:
 
 ---
 
-## 🔍 Key Analyses
+##  Key Analyses
 
 ### Profit vs Budget
 
@@ -171,7 +171,7 @@ Simulates:
 
 ---
 
-## 🚀 Deployment
+##  Deployment
 
 ### API
 
@@ -187,8 +187,7 @@ docker run -p 8000:8000 churn-api
 ```
 
 ---
-
-## 🔁 CI/CD
+##  CI/CD
 
 Implemented using **GitHub Actions**
 
@@ -199,11 +198,11 @@ Validates:
 * test cases
 * Docker build
 
-👉 Ensures reliable and reproducible deployments
+ Ensures reliable and reproducible deployments
 
 ---
 
-## 📊 Monitoring
+##  Monitoring
 
 Tracks:
 
@@ -224,7 +223,7 @@ Baseline avg churn probability: 0.2667
 ⚠ Drift detected
 ```
 
-👉 Enables early detection of data and prediction drift
+ Enables early detection of data and prediction drift
 
 ---
 
@@ -241,7 +240,7 @@ Validates:
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```text
 src/
@@ -256,7 +255,7 @@ src/
 
 ---
 
-## ⚠️ Limitations
+##  Limitations
 
 * Uses value proxy instead of full CLTV
 * Simulation assumes fixed rescue rate
@@ -272,7 +271,7 @@ src/
 
 ---
 
-## 🧠 Key Takeaways
+##  Key Takeaways
 
 * Optimize **profit**, not just accuracy
 * Calibration is critical for decisions
