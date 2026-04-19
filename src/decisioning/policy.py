@@ -5,6 +5,9 @@ import mlflow
 config = load_config()
 
 
+# -------------------------------
+# Loaders
+# -------------------------------
 def load_predictions(pred_path):
     return pd.read_csv(pred_path)
 
@@ -13,11 +16,14 @@ def load_test_data(test_path):
     return pd.read_csv(test_path)
 
 
+# -------------------------------
+# Build base table
+# -------------------------------
 def build_policy_table(predictions, test_data):
     df = predictions.copy()
 
     df["MonthlyCharges"] = test_data["Monthly Charges"].values
-    df["Churn Value"] = test_data["Churn Value"].values  # offline evaluation only
+    df["Churn Value"] = test_data["Churn Value"].values  # offline only
 
     horizon = config["value_proxy"]["horizon_months"]
     df["ValueProxy"] = df["MonthlyCharges"] * horizon
@@ -25,36 +31,47 @@ def build_policy_table(predictions, test_data):
     return df
 
 
+# -------------------------------
+# Smooth behavioral weighting
+# -------------------------------
 def sensitivity_weight(p):
     """
-    Simple heuristic weight:
-    - ignore very low risk
-    - slightly downweight very high risk
+    Smooth weighting:
+    - mid-risk customers more persuadable
+    - extremes downweighted
     """
-    if p < 0.2:
-        return 0.0
-    elif p > 0.8:
-        return 0.8
-    return 1.0
+    return max(0.0, 1 - abs(p - 0.5) * 2)
 
 
+# -------------------------------
+# Apply policy scores
+# -------------------------------
 def apply_policy_scores(df):
     df = df.copy()
 
+    # Policy 1: Risk only
     df["score_risk_only"] = df["churn_probability"]
 
+    # Policy 2: Risk × Value
     df["score_risk_value"] = (
         df["churn_probability"] * df["ValueProxy"]
     )
 
+    # Policy 3: Risk × Value × Behavioral weighting
     df["weight"] = df["churn_probability"].apply(sensitivity_weight)
+
     df["score_risk_value_weighted"] = (
-        df["churn_probability"] * df["ValueProxy"] * df["weight"]
+        df["churn_probability"] *
+        df["ValueProxy"] *
+        df["weight"]
     )
 
     return df
 
 
+# -------------------------------
+# Simulate policy
+# -------------------------------
 def simulate_policy(
     df,
     score_col,
@@ -62,32 +79,46 @@ def simulate_policy(
     contact_cost=None,
     discount=None,
     rescue_rate=None
-):  
+):
+    df = df.copy()
+
     if contact_cost is None:
         contact_cost = config["campaign"]["contact_cost"]
 
     if discount is None:
         discount = config["campaign"]["discount"]
-  
+
     if rescue_rate is None:
         rescue_rate = config["campaign"]["rescue_rate"]
+
     df = df.sort_values(score_col, ascending=False)
 
-    cutoff = int(len(df) * budget_pct)
+    cutoff = max(1, int(len(df) * budget_pct))
     targeted = df.head(cutoff).copy()
 
+    # -------------------
+    # Expected (model-based)
+    # -------------------
     expected_retained_value = (
-        targeted["churn_probability"] * targeted["ValueProxy"] * rescue_rate
+        targeted["churn_probability"] *
+        targeted["ValueProxy"] *
+        rescue_rate
     ).sum()
 
+    # -------------------
+    # Realized proxy (using actual churn labels)
+    # -------------------
     realized_retained_value_proxy = (
-        targeted["Churn Value"] * targeted["ValueProxy"] * rescue_rate
+        targeted["Churn Value"] *
+        targeted["ValueProxy"] *
+        rescue_rate
     ).sum()
 
     total_cost = cutoff * (contact_cost + discount)
 
     expected_profit = expected_retained_value - total_cost
     realized_profit_proxy = realized_retained_value_proxy - total_cost
+
     roi = expected_profit / total_cost if total_cost > 0 else 0
 
     targeted_churn_rate = targeted["Churn Value"].mean()
@@ -109,8 +140,11 @@ def simulate_policy(
     }
 
 
+# -------------------------------
+# Run comparison
+# -------------------------------
 def run_policy_comparison():
-    
+
     preds = load_predictions("data/predictions/test_predictions.csv")
     test_data = load_test_data("data/processed/test.csv")
 
@@ -128,12 +162,14 @@ def run_policy_comparison():
 
     results = []
 
-
     for policy in policies:
         for b in budgets:
             for r in rescue_rates:
 
-                with mlflow.start_run(run_name=f"{policy}_b{b}_r{r}", nested=True):
+                with mlflow.start_run(
+                    run_name=f"{policy}_b{b}_r{r}",
+                    nested=True
+                ):
 
                     result = simulate_policy(
                         df=df,
@@ -154,7 +190,7 @@ def run_policy_comparison():
                     mlflow.log_param("discount", config["campaign"]["discount"])
 
                     # -------------------
-                    # LOG BUSINESS METRICS (CORE)
+                    # LOG BUSINESS METRICS
                     # -------------------
                     mlflow.log_metric("expected_profit", result["expected_profit"])
                     mlflow.log_metric("roi", result["roi"])
