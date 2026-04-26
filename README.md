@@ -12,15 +12,27 @@ This system answers a more actionable question:
 
 By combining *churn prediction, customer value, and campaign economics, this system converts predictions into **profit-driven decisions*.
 
+---
+
+## 🌐 Live Demo
+
+- 🎯 *Streamlit UI*: https://your-app.streamlit.app  
+
+- ⚙️ *API (AWS EC2)*: http://<your-ec2-ip>:8000/docs  
+
+> ⚠️ Note: Backend API may be inactive when EC2 is stopped.  
+
+> The UI includes a *demo mode fallback* to ensure usability.
+
 
 ---
 
 ##  Key Results
 
 * ~**3× lift** in retained value within top-decile targeting
-* ~**5–10% higher expected profit** vs probability-only targeting
+* ~5–10% improvement observed in simulation experiments
 * **Break-even rescue rate:** ~8–10%
-* Optimal targeting range: **10–15% of customers**
+* Optimal targeting occurs near the upper boundary of the tested budget range (10–15% in experiments)
 
  Demonstrates that **value-aware targeting significantly improves ROI**
 
@@ -67,7 +79,7 @@ to prioritize **high-value, persuadable customers**
 ##  System Architecture
 
 ```text
-Data Pipeline → Model → Calibration → Decision Layer → API → Monitoring
+Data Pipeline → Model → Calibration → Policy → Decision → API → UI → Monitoring
 ```
 
 ### Layers
@@ -78,7 +90,8 @@ Data Pipeline → Model → Calibration → Decision Layer → API → Monitorin
 - *Policy Layer* → evaluates targeting strategies  
 - *Decision Layer* → profit-based optimization  
 - *Execution Layer* → threshold-based targeting  
-- *API* → FastAPI deployment  
+- *API* → FastAPI(dockerized deployed on AWS)
+- *UI* → Streamlit Cloud frontend
 - *Monitoring* → drift detection
 
 ---
@@ -195,6 +208,11 @@ Simulates:
 
 ##  Deployment
 
+## Backend (AWS EC2)
+
+* FastAPI served via Docker
+* Public API exposed via EC2
+
 ### API
 
 ```bash
@@ -209,6 +227,27 @@ docker run -p 8000:8000 churn-api
 ```
 
 ---
+## Frontend (Streamlit Cloud)
+
+* UI deployed on Streamlit Cloud
+* Communicates with API via HTTP
+
+## Configuration (Secrets)
+API endpoint managed via Streamlit secrets:
+
+```bash
+API_URL = "http://<your-ec2-ip>:8000/decision
+```
+Prevents hardcoding infrastructure details
+
+## Demo Mode (Resilience)
+If backend is unavailable:
+
+* UI automatically switches to demo mode
+* Uses simulated outputs
+
+    Ensures uninterrupted demo experience
+
 ##  CI/CD
 
 Implemented using **GitHub Actions**
