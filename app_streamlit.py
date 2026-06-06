@@ -7,6 +7,10 @@ import requests
 st.set_page_config(page_title="Churn Decision System", layout="wide")
 
 HORIZON = 12
+RESCUE_RATE = 0.2   # from business.yaml
+CONTACT_COST = 5    # from business.yaml
+DISCOUNT = 50       # from business.yaml
+SCORE_THRESHOLD = 300  # derived from policy simulation (score_risk_value, 15% budget)
 
 # Get API URL from Streamlit Secrets
 API_URL = st.secrets.get("API_URL", None)
@@ -16,17 +20,37 @@ FORCE_DEMO_MODE = False
 
 
 # ---------------------------
-# DEMO DATA (fallback)
+# DEMO DATA (dynamic fallback)
+# Mirrors real API logic using actual business.yaml params
+# Churn probability is a representative fixed value (0.28) —
+# real probability requires the trained model which lives on EC2
 # ---------------------------
-def get_demo_response():
+def get_demo_response(monthly_charges):
+    """
+    Dynamic demo response that reflects user inputs.
+    Churn probability is fixed at a representative value (0.28)
+    since the trained model is not available without the backend.
+    All other values are computed from actual business logic.
+    """
+    churn_prob = 0.28  # representative — real model runs on EC2
+    value_proxy = round(monthly_charges * HORIZON, 2)
+    score = round(churn_prob * value_proxy, 2)
+    expected_profit = round(churn_prob * value_proxy * RESCUE_RATE - (CONTACT_COST + DISCOUNT), 2)
+    decision = "TARGET" if score >= SCORE_THRESHOLD else "DO NOT TARGET"
+    reason = (
+        "High value customer with positive expected ROI"
+        if score >= SCORE_THRESHOLD
+        else "Score below threshold — not worth targeting at current value"
+    )
+
     return {
-        "churn_probability": 0.28,
-        "value_proxy": 1200,
-        "score": 336,
-        "decision": "TARGET",
-        "score_threshold": 300,
-        "expected_profit": 85,
-        "reason": "High value customer with positive expected ROI"
+        "churn_probability": churn_prob,
+        "value_proxy": value_proxy,
+        "score": score,
+        "decision": decision,
+        "score_threshold": SCORE_THRESHOLD,
+        "expected_profit": expected_profit,
+        "reason": reason
     }
 
 
@@ -105,8 +129,12 @@ if st.button("🚀 Get Decision"):
     # FALLBACK TO DEMO
     # ---------------------------
     if using_demo:
-        result = get_demo_response()
-        st.warning("⚠ Running in DEMO MODE (backend not active)")
+        result = get_demo_response(monthly_charges)
+        st.warning(
+            "⚠️ Running in DEMO MODE (backend not active). "
+            "Churn probability is fixed at a representative value (0.28). "
+            "Score, profit, and targeting decision reflect your actual inputs."
+        )
 
     st.divider()
 
@@ -154,7 +182,7 @@ if st.button("🚀 Get Decision"):
     if result["expected_profit"] > 0:
         st.success("✅ Profitable to target")
     else:
-        st.warning("⚠ Not profitable")
+        st.warning("⚠️ Not profitable at current value and assumed rescue rate")
 
     st.divider()
 
@@ -166,10 +194,14 @@ if st.button("🚀 Get Decision"):
     threshold = result["score_threshold"]
     score = result["score"]
 
-    progress_ratio = min(score / threshold, 1.0)
+    progress_ratio = min(score / (threshold * 1.5), 1.0)
     st.progress(progress_ratio)
 
-    st.write(f"Score: {round(score,2)} | Threshold: {round(threshold,2)}")
+    st.write(f"Score: {round(score, 2)} | Threshold: {round(threshold, 2)}")
+    st.caption(
+        "Threshold derived from policy simulation: "
+        "score of the last customer in top 15% ranked by decision score (score_risk_value policy)"
+    )
 
     if score >= threshold:
         st.success("Above threshold → Selected")
@@ -193,12 +225,12 @@ if st.button("🚀 Get Decision"):
     st.divider()
 
     # ---------------------------
-    # WHAT-IF ANALYSIS (FIXED)
+    # WHAT-IF ANALYSIS
     # ---------------------------
     st.subheader("🧪 What-if Analysis")
 
     if "what_if_value" not in st.session_state:
-        st.session_state.what_if_value = monthly_charges
+        st.session_state.what_if_value = int(monthly_charges)
 
     new_charge = st.slider(
         "Adjust Monthly Charges",
@@ -209,13 +241,19 @@ if st.button("🚀 Get Decision"):
     )
 
     new_value = new_charge * HORIZON
-    estimated_score = result["churn_probability"] * new_value
+    estimated_score = round(result["churn_probability"] * new_value, 2)
+    estimated_profit = round(result["churn_probability"] * new_value * RESCUE_RATE - (CONTACT_COST + DISCOUNT), 2)
 
-    st.write(f"New Value: ${round(new_value,2)}")
-    st.write(f"Estimated Score: {round(estimated_score,2)}")
+    col1, col2 = st.columns(2)
+    col1.metric("New Value Proxy ($)", round(new_value, 2))
+    col2.metric("Estimated Score", estimated_score)
 
-    if estimated_score > threshold:
+    st.write(f"Estimated Profit: ${estimated_profit}")
+
+    if estimated_score >= threshold:
         st.success("🚀 Would become TARGETABLE")
+    elif estimated_score >= threshold * 0.8:
+        st.info("📈 Close to threshold — small value increase would tip the decision")
     else:
         st.warning("Still below threshold")
 
@@ -228,9 +266,17 @@ if st.button("🚀 Get Decision"):
     # ---------------------------
     with st.expander("📘 How this system works"):
         st.markdown("""
-1. Predict churn probability  
-2. Estimate customer value  
-3. Compute expected profit  
-4. Rank customers by score  
-5. Apply threshold under budget constraints  
+1. **Predict** churn probability using calibrated XGBoost
+2. **Estimate** customer value (Monthly Charges × 12 months)
+3. **Compute** decision score = churn probability × value proxy
+4. **Rank** all customers by decision score
+5. **Apply** profit-based threshold under budget constraints
+6. **Output** targeting decision + expected profit
+
+**Campaign parameters (from business.yaml):**
+- Contact cost: $5 per customer
+- Discount: $50 per customer
+- Rescue rate: 20%
+- Value horizon: 12 months
+- Threshold derived from: score_risk_value policy, 15% budget
 """)
