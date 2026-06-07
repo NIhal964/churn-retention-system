@@ -8,6 +8,8 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-live-brightgreen)
 ![AWS EC2](https://img.shields.io/badge/AWS-EC2%20t2.micro-yellow)
 
+[View on GitHub](https://github.com/NIhal964/churn-retention-system)
+
 Most churn models stop at telling you who's going to leave. I wanted to know: given a limited budget, which customers are actually worth the money to save?
 
 That's a different question — and it needs a different kind of system. This project builds one.
@@ -183,6 +185,8 @@ XGBClassifier(
 ```
 
 XGBoost was chosen for ranking performance, not just accuracy. For a campaign targeting the top 10% of customers, lift matters more than overall AUC.
+
+Feature importance analyzed via SHAP TreeExplainer — see `src/modeling/explain.py`. Helps explain which features drive individual targeting decisions, not just global importance.
 
 ---
 
@@ -417,7 +421,7 @@ Other limitations:
 
 ## What I'd Do Differently
 
-Get a better dataset. Specifically, one with treatment and control groups — who was contacted, who wasn't, and what happened to both. That's what would allow genuine uplift modeling instead of assumption-based rescue rates. The decision layer architecture would stay the same; the inputs to the profit formula would actually be measured rather than assumed.
+Get a better dataset. Specifically, one with treatment and control groups — who was contacted, who wasn't, and what happened to both. That's what would allow genuine uplift modeling instead of assumption-based rescue rates. The right way to measure rescue rate is an A/B test: contact a random subset, hold out a control group, measure the difference. I built that kind of sequential testing infrastructure in a separate project — the missing piece here is the data, not the methodology. The decision layer architecture would stay the same; the inputs to the profit formula would actually be measured rather than assumed.
 
 ---
 
