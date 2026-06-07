@@ -1,365 +1,430 @@
-# 💰 Value-Aware Churn Optimization & Decision System
+# 💰 Churn Retention & Decision System
 
-## 📌 Overview
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![XGBoost](https://img.shields.io/badge/XGBoost-trained-orange)
+![Databricks](https://img.shields.io/badge/Databricks-Free%20Edition-red)
+![MLflow](https://img.shields.io/badge/MLflow-tracked-blue)
+![Docker](https://img.shields.io/badge/Docker-deployed-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-live-brightgreen)
+![AWS EC2](https://img.shields.io/badge/AWS-EC2%20t2.micro-yellow)
 
-Traditional churn models answer:
+Most churn models stop at telling you who's going to leave. I wanted to know: given a limited budget, which customers are actually worth the money to save?
 
-> “Who will churn?”
-
-This system answers a more actionable question:
-
-> *“Who should we target to maximize retained revenue under budget constraints?”*
-
-By combining *churn prediction, customer value, and campaign economics, this system converts predictions into **profit-driven decisions*.
-
----
-
-## 🌐 Live Demo
-
-- 🎯 *Streamlit UI*: https://your-app.streamlit.app  
-
-- ⚙️ *API (AWS EC2)*: http://<your-ec2-ip>:8000/docs  
-
-> ⚠️ Note: Backend API may be inactive when EC2 is stopped.  
-
-> The UI includes a *demo mode fallback* to ensure usability.
-
+That's a different question — and it needs a different kind of system. This project builds one.
 
 ---
 
-##  Key Results
+## Live Demo
 
-* ~**3× lift** in retained value within top-decile targeting
-* ~5–10% improvement observed in simulation experiments
-* **Break-even rescue rate:** ~8–10%
-* Optimal targeting occurs near the upper boundary of the tested budget range (10–15% in experiments)
+| Interface | Link |
+|---|---|
+| Streamlit UI | [churn-retention-system.streamlit.app](https://churn-retention-system-4tib8amzb5z2eucwkpe5w9.streamlit.app/) |
+| FastAPI (AWS EC2) | Stopped to manage costs — demo mode activates automatically |
+| Docker Hub | `docker pull nihal4051/churn-api:v3` |
 
- Demonstrates that **value-aware targeting significantly improves ROI**
+The EC2 instance is stopped when not in use. The Streamlit app switches to demo mode automatically — churn probability is fixed at 0.28 as a representative value, but score, profit, and the targeting decision all respond to whatever you input.
 
-## 📊 Policy Comparison
-
-![Policy Comparison](assets/policy_comparison.png)
-
-Value-aware targeting significantly outperforms probability-only targeting in expected profit.
-
-## 📈 Profit vs Budget
-
-![Profit vs Budget](assets/profit_vs_budget.png)
-
-- Profit increases with budget but *diminishes gradually*
-- Optimal point appears near *upper boundary of tested range*
-
- Indicates that under current assumptions, *additional targeting remains profitable*
-
-## 🎯 Threshold Optimization
-
-![Threshold Curve](assets/threshold_curve.png)
-
-Profit-based thresholding converts policy decisions into *deployable targeting rules*, avoiding arbitrary cutoffs.
 ---
 
-## Core Idea
+## UI
 
-```text
-Prediction ≠ Decision
+### Input form
+![UI Input Form](assets/streamlit/UI.png)
+
+### Decision result — $70/month customer, not worth targeting
+Score 235.2 falls below the threshold of 300. Even with a 28% churn risk, the campaign cost ($55) isn't justified at this value.
+
+![Decision Result](assets/streamlit/decision_result.png)
+
+### Score vs threshold
+The threshold isn't arbitrary — it's the score of the last customer in the top 15% when ranked by `churn_probability × value_proxy`, derived from the policy simulation.
+
+![Score Threshold](assets/streamlit/score_threshold.png)
+
+### What-if analysis
+Slide the monthly charges up and watch the targeting decision flip. This is the point of the whole project — value drives the decision, not just risk.
+
+![What-if Analysis](assets/streamlit/whatif_analysis.png)
+
+---
+
+## Results
+
+| Metric | Value |
+|---|---|
+| ROC-AUC (XGBoost) | 0.8408 |
+| PR-AUC | 0.6525 |
+| Precision@10% | 0.771 |
+| Lift@10% | 2.91× |
+| Value-aware vs risk-only profit gain | ~55% at every budget level |
+| Best policy expected profit | **$151,710** |
+| Best policy ROI | **2.61×** |
+| Customers targeted (best policy) | 1,056 of 7,043 |
+
+---
+
+## The Core Idea
+
+A customer with 90% churn probability paying $20/month is worth less to retain than one at 60% probability paying $110/month. Standard churn models miss this completely.
+
 ```
-
-A high churn probability customer is not always worth targeting.
-
-We use:
-
-```text
 Decision Score = churn_probability × value_proxy
 ```
 
-to prioritize **high-value, persuadable customers**
+From there, the system runs a full economic simulation — contact costs, discount offered, estimated rescue rate — and picks who to target under a given budget. The output isn't a probability. It's a ranked intervention list with expected profit attached.
+
+The hardest part to build was the decision and policy layer — figuring out how to go from "here are my model outputs" to "here is who you should actually call, and why, and what it's worth." That's where most of the design work went.
 
 ---
 
-##  System Architecture
+## How It's Built
 
-```text
-Data Pipeline → Model → Calibration → Policy → Decision → API → UI → Monitoring
+```
+Raw Data (Delta)
+    ↓
+Feature Engineering
+    ↓
+XGBoost + Isotonic Calibration
+    ↓
+MLflow Tracking + Model Registry
+    ↓
+Batch Scoring (Delta)
+    ↓
+Policy Simulation (3 strategies × 3 budgets × 3 rescue rates)
+    ↓
+Threshold Optimization
+    ↓
+Intervention Table (Delta)
+    ↓
+FastAPI on AWS EC2 → Streamlit UI
 ```
 
-### Layers
-
-- *Data Pipeline* → ingestion, validation, splitting  
-- *Modeling* → churn prediction (XGBoost)  
-- *Calibration* → reliable probabilities (Isotonic Regression)  
-- *Policy Layer* → evaluates targeting strategies  
-- *Decision Layer* → profit-based optimization  
-- *Execution Layer* → threshold-based targeting  
-- *API* → FastAPI(dockerized deployed on AWS)
-- *UI* → Streamlit Cloud frontend
-- *Monitoring* → drift detection
+| Layer | What it does |
+|---|---|
+| Data Pipeline | Ingestion, validation, leakage prevention, splitting |
+| Modeling | XGBoost churn prediction |
+| Calibration | Isotonic regression for reliable probabilities |
+| Policy Layer | Evaluates 3 targeting strategies across budget and rescue rate grid |
+| Decision Layer | Picks the best policy by expected profit |
+| Execution Layer | Converts policy into a score threshold for deployment |
+| API | FastAPI, Dockerized, on AWS EC2 |
+| UI | Streamlit with demo mode fallback |
+| Monitoring | Prediction and feature drift detection |
 
 ---
 
-##  Data Pipeline
+## Databricks Pipeline
 
-Modular pipeline design:
+I also ported the full pipeline to Databricks to work with the production data engineering pattern — Delta tables, MLflow tracking, and model registry — rather than just local CSVs and a local tracking server.
 
-```text
+```
+telco_customer_churn (Delta)
+    ↓
+01_feature_engineering → telco_churn_features (Delta)
+    ↓
+02_train_and_register → MLflow experiment + Model Registry
+    ↓
+03_batch_score → telco_churn_interventions (Delta)
+```
+
+| What was built | Detail |
+|---|---|
+| Delta tables | `telco_customer_churn`, `telco_churn_features`, `telco_churn_interventions` |
+| MLflow experiment | Params, metrics, calibration curve — all tracked |
+| Registered model | `churn-calibrated-model` Version 1 in Unity Catalog |
+| Policy runs | 27 nested MLflow runs (3 policies × 3 budgets × 3 rescue rates) |
+| ROC-AUC on Databricks | 0.8744 |
+| Best policy profit | $151,710 |
+
+![MLflow Experiment](assets/databricks/mlflow_experiment.png)
+
+![Policy Results](assets/databricks/policy_results.png)
+
+![Model Registry](assets/databricks/model_registry.png)
+
+One honest note: Free Edition uses serverless single-node compute, so this isn't distributed Spark processing. The architecture — Delta, MLflow, Model Registry — is the same as a production deployment. The scale isn't.
+
+See [/databricks](./databricks/) for all three notebooks.
+
+---
+
+## Data Pipeline
+
+```
 src/data/
-  ├── load.py
-  ├── validate.py
-  ├── split.py
-  └── prepare.py
+  ├── load.py       # Excel ingestion
+  ├── validate.py   # Cleaning, null handling, encoding
+  ├── split.py      # 80/20 stratified split (random_state=42)
+  └── prepare.py    # Orchestration
 ```
 
-Ensures:
-
-* reproducibility
-* clean train/test separation
-* leakage prevention
+Churn Score, CLTV, Churn Label, and Churn Reason are dropped before any modeling. These are post-hoc labels — they wouldn't exist at prediction time and including them would be leakage.
 
 ---
 
-##  Modeling
+## Modeling
 
-### Models Evaluated
+| Model | ROC-AUC | PR-AUC | Brier Score |
+|---|---|---|---|
+| Logistic Regression (baseline) | 0.8332 | 0.6215 | 0.1412 |
+| XGBoost uncalibrated | 0.8408 | 0.6525 | 0.1373 |
+| XGBoost + Isotonic (final) | **0.8406** | **0.6478** | **0.1377** |
 
-* Logistic Regression (baseline)
-* XGBoost (final)
-
-### Final Model Performance
-
-* ROC-AUC: **0.86**
-* PR-AUC: **0.68**
-
- Selected for strong ranking performance
-
----
-
-##  Probability Calibration
-
-Tree models are often miscalibrated.
-
-Applied **Isotonic Regression**:
-
-* Calibrated ROC-AUC: **0.859**
-* Brier Score: **0.13**
-
- Enables reliable **financial decision-making**
-
----
-
-## 📊 Ranking Performance
-
-Retention campaigns target a small fraction of users.
-
-* Precision@5%: **0.83**
-* Precision@10%: **0.79**
-* Lift@10%: **~3×**
-
-Model identifies significantly more churners than random targeting
-
----
-
-##  Decision Layer
-
-### Policies
-
-* Risk-only → P(churn)
-* Risk × Value → P(churn) × ValueProxy
-* Weighted strategy → penalizes extreme cases
-
-### Insight
-
-```text
-Value-aware targeting consistently outperforms probability-only strategies
+```python
+XGBClassifier(
+    n_estimators=300,
+    max_depth=4,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    eval_metric="logloss",
+    random_state=42
+)
 ```
 
+XGBoost was chosen for ranking performance, not just accuracy. For a campaign targeting the top 10% of customers, lift matters more than overall AUC.
+
 ---
 
-## 📈 Economic Simulation
+## Probability Calibration
 
-Expected profit:
+Tree models are often miscalibrated — the predicted probability of 0.7 doesn't necessarily mean 70% of those customers actually churn. When you're plugging probabilities directly into a profit formula, that matters.
 
-```text
+Applied isotonic regression via `CalibratedClassifierCV(cv=5)`:
+
+| Metric | Before | After |
+|---|---|---|
+| ROC-AUC | 0.8408 | 0.8406 |
+| PR-AUC | 0.6525 | 0.6478 |
+| Brier Score | 0.1373 | 0.1377 |
+
+Calibration made marginal difference here — consistent across local and Databricks runs. The base XGBoost probabilities are already reasonably well-calibrated on this dataset. With more data and more miscalibration to start with, isotonic typically helps more.
+
+---
+
+## Ranking Performance
+
+For a retention campaign targeting a small fraction of customers, ranking metrics matter more than overall accuracy.
+
+| Metric | Logistic | XGBoost |
+|---|---|---|
+| Precision@5% | 0.729 | **0.814** |
+| Precision@10% | 0.700 | **0.771** |
+| Recall@5% | 0.136 | **0.152** |
+| Recall@10% | 0.262 | **0.289** |
+| Lift@10% | 2.64× | **2.91×** |
+
+In the top 10% of customers ranked by churn probability, XGBoost finds nearly 3× as many actual churners as random selection would.
+
+---
+
+## Decision Layer
+
+Three targeting policies, each with a different philosophy:
+
+| Policy | Formula | Logic |
+|---|---|---|
+| Risk only | `P(churn)` | Target whoever is most likely to leave |
+| Risk × Value | `P(churn) × ValueProxy` | Target whoever has the most revenue at risk |
+| Risk × Value × Weight | `P(churn) × ValueProxy × sensitivity_weight(p)` | Downweight extremes, focus on persuadable customers |
+
+The sensitivity weight penalizes customers at the probability extremes:
+
+```python
+def sensitivity_weight(p):
+    return max(0.0, 1 - abs(p - 0.5) * 2)
+```
+
+Someone at 95% churn probability is probably already gone. Someone at 5% probably isn't going anywhere. The interesting customers to target are in the middle.
+
+---
+
+## Economic Simulation
+
+```
 Expected Profit =
-Σ(P(churn) × ValueProxy × rescue_rate)
-− Campaign Cost
+  Σ(P(churn) × ValueProxy × rescue_rate)
+  − (contact_cost + discount) × customers_targeted
 ```
 
-Simulates:
+Campaign parameters from `configs/business.yaml`:
 
-* budget constraints
-* rescue rate(campaign effectiveness)
-* campaign cost
+| Parameter | Value |
+|---|---|
+| Contact cost | $5 |
+| Discount offered | $50 |
+| Value horizon | 12 months |
+| Rescue rates tested | 10%, 20%, 30% |
+| Budgets tested | 5%, 10%, 15% of customers |
+
+![Policy Comparison](assets/policy_comparison.png)
+
+| Policy | Budget | Avg Expected Profit | Avg ROI |
+|---|---|---|---|
+| score_risk_only | 5% | $26,494 | 1.37× |
+| score_risk_only | 10% | $45,758 | 1.18× |
+| score_risk_only | 15% | $56,707 | 0.98× |
+| **score_risk_value** | **5%** | **$42,697** | **2.21×** |
+| **score_risk_value** | **10%** | **$66,263** | **1.71×** |
+| **score_risk_value** | **15%** | **$81,780** | **1.41×** |
+| score_risk_value_weighted | 5% | $26,874 | 1.39× |
+| score_risk_value_weighted | 10% | $47,663 | 1.23× |
+| score_risk_value_weighted | 15% | $64,125 | 1.10× |
+
+Value-aware targeting beats risk-only by ~55% at every budget level. The weighted strategy underperforms both — penalizing high-probability customers hurts more than it helps on this dataset.
+
+![Profit vs Budget](assets/profit_vs_budget.png)
 
 ---
 
-##  Key Analyses
+## Threshold Optimization
 
-## Profit vs Budget
-- Reveals diminishing returns  
-- Optimal near upper tested range  
+The best policy gets converted into an actual cutoff score for deployment — not a probability threshold, a decision score threshold.
 
-### Profit vs Rescue Rate
-- Break-even: ~8–10%  
+![Threshold Curve](assets/threshold_curve.png)
 
-### Policy Comparison
-- Validates value-aware strategies  
+```python
+# Last customer in the targeted group sets the threshold
+score_threshold = targeted["score"].iloc[-1]
+```
 
+Best run:
+
+| Parameter | Value |
+|---|---|
+| Policy | `score_risk_value` |
+| Budget | 15% |
+| Rescue rate | 30% |
+| Customers targeted | 1,056 |
+| Expected profit | **$151,710** |
+| ROI | **2.61×** |
 
 ---
 
-##  Deployment
+## Deployment
 
-## Backend (AWS EC2)
+FastAPI backend, Dockerized and deployed on EC2. Image is on Docker Hub:
 
-* FastAPI served via Docker
-* Public API exposed via EC2
+```bash
+docker pull nihal4051/churn-api:v3
+docker run -p 8000:8000 nihal4051/churn-api:v3
+```
 
-### API
-
+Or run locally:
 ```bash
 uvicorn src.api.app:app --reload
 ```
 
-### Docker
+The `/decision` endpoint takes customer features and returns churn probability, decision score, intervention flag, and expected profit. The Streamlit frontend calls this endpoint and falls back to demo mode if it's unreachable.
+
+CI/CD runs on GitHub Actions — validates dependencies, runs tests, checks API startup, and builds the Docker image on every push.
+
+---
+
+## Monitoring
+
+A baseline is saved at training time:
+
+```python
+baseline = {
+    "avg_churn_prob":      0.2677,
+    "std_churn_prob":      0.2445,
+    "avg_monthly_charges": 64.09,
+    "std_monthly_charges": 29.90
+}
+```
+
+Live predictions get compared against it. If the distribution drifts, it flags early — before model performance degrades silently in production.
+
+```
+Current avg churn probability:  0.1700
+Baseline avg churn probability: 0.2677
+⚠️  Drift detected
+```
+
+---
+
+## Setup
 
 ```bash
-docker build -t churn-api .
-docker run -p 8000:8000 churn-api
+git clone https://github.com/NIhal964/churn-retention-system
+cd churn-retention-system
+pip install -r requirements.txt
+
+# Run full pipeline
+python -m src.pipeline.run_pipeline
+
+# API
+uvicorn src.api.app:app --reload
+
+# UI
+streamlit run app_streamlit.py
+
+# Tests
+pytest tests/
 ```
 
 ---
-## Frontend (Streamlit Cloud)
 
-* UI deployed on Streamlit Cloud
-* Communicates with API via HTTP
+## Project Structure
 
-## Configuration (Secrets)
-API endpoint managed via Streamlit secrets:
-
-```bash
-API_URL = "http://<your-ec2-ip>:8000/decision
 ```
-Prevents hardcoding infrastructure details
-
-## Demo Mode (Resilience)
-If backend is unavailable:
-
-* UI automatically switches to demo mode
-* Uses simulated outputs
-
-    Ensures uninterrupted demo experience
-
-##  CI/CD
-
-Implemented using **GitHub Actions**
-
-Validates:
-
-* dependencies
-* API startup
-* test cases
-* Docker build
-
- Ensures reliable and reproducible deployments
+churn-retention-system/
+├── configs/
+│   ├── business.yaml
+│   ├── decision_config.json
+│   └── monitoring_baseline.json
+├── databricks/
+│   ├── 01_feature_engineering.py
+│   ├── 02_train_and_register.py
+│   └── 03_batch_score.py
+├── src/
+│   ├── api/
+│   ├── data/
+│   ├── features/
+│   ├── modeling/
+│   ├── decisioning/
+│   ├── pipeline/
+│   └── monitoring/
+├── assets/
+│   ├── databricks/
+│   ├── streamlit/
+│   ├── policy_comparison.png
+│   ├── profit_vs_budget.png
+│   └── threshold_curve.png
+├── models/
+├── tests/
+├── Dockerfile
+├── requirements.txt
+└── README.md
+```
 
 ---
 
-##  Monitoring
+## Limitations
 
-Tracks:
+The biggest one: this system can't measure whether a campaign actually worked. The `rescue_rate` parameter is an assumption — I set it to 20% based on reasonable industry estimates, but without a randomized experiment (treatment vs control group), there's no way to know the true effect.
 
-* prediction distribution (churn probability)
-* feature distribution (e.g., Monthly Charges)
-* % high-risk customers
+That's what uplift modeling solves. You need a dataset with both treated and untreated customers to estimate the actual incremental impact of reaching out. With observational data alone, you're estimating, not measuring.
 
-### Approach
+Other limitations:
 
-* Baseline saved during training
-* Live predictions compared to baseline
-
-Example:
-
-```text
-Current avg churn probability: 0.1700
-Baseline avg churn probability: 0.2667
-⚠ Drift detected
-```
-
- Enables early detection of data and prediction drift
+- Value proxy is `monthly_charges × 12`, not actual CLTV
+- Rescue rate is constant across all customers — in reality, some are more persuadable than others
+- No saturation modeling — the simulation assumes each additional customer still contributes positive expected value, which won't hold at scale
 
 ---
 
-##  Testing
+## What I'd Do Differently
+
+Get a better dataset. Specifically, one with treatment and control groups — who was contacted, who wasn't, and what happened to both. That's what would allow genuine uplift modeling instead of assumption-based rescue rates. The decision layer architecture would stay the same; the inputs to the profit formula would actually be measured rather than assumed.
+
+---
+
+## Testing
 
 ```bash
 pytest tests/
 ```
 
-Validates:
-
-* API availability
-* prediction behavior (high vs low churn)
-
----
-
-##  Project Structure
-
-```text
-src/
-  ├── api/
-  ├── data/
-  ├── features/
-  ├── modeling/
-  ├── decisioning/
-  ├── pipeline/
-  └── monitoring/
-```
-
----
-
-##  Important Insight
-
-The system often selects *boundary solutions* (max budget / rescue rate within search).
-
-This occurs because:
-The model assumes constant campaign effectiveness (rescue_rate)
-
- As a result:
-
-- Each additional customer still contributes positive expected value  
-- No saturation or diminishing response is modeled  
-
----
-
-## 🚧 Limitations
-
-- Uses *value proxy*, not full CLTV  
-- Assumes *constant rescue_rate*  
-- Does not model:
-  - customer persuadability  
-  - campaign saturation  
-  - negative ROI region  
-
----
-
-## 🔮 Future Work
-
-- Uplift modeling (causal targeting)  
-- A/B testing for true response estimation  
-- Response curves for campaign saturation  
-- Advanced monitoring (Prometheus + Grafana)  
-
-
----
-
-##  Key Takeaways
-
-* Optimize **profit**, not just accuracy
-* Calibration is critical for decisions
-* Decision layer > prediction alone
-* Monitoring is essential for production ML
-
-## Final Insights 
-
-This project demonstrates how to move from predictive modeling
-to real-world decision systems by integrating machine learning
-with business economics and operational constraints.
+Validates API availability and prediction behavior on high and low churn input profiles.
