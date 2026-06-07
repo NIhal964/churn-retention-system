@@ -146,6 +146,8 @@ telco_customer_churn (Delta)
 
 One honest note: Free Edition uses serverless single-node compute, so this isn't distributed Spark processing. The architecture — Delta, MLflow, Model Registry — is the same as a production deployment. The scale isn't.
 
+**On the ROC-AUC difference (0.8408 local vs 0.8744 Databricks):** same model, same seed, different preprocessing path. The local pipeline uses a sklearn ColumnTransformer on raw data with `pd.get_dummies(drop_first=True)`. The Databricks pipeline trained on an already-encoded Delta table where Monthly Charges was explicitly cast to float before encoding, booleans were converted to int, and column names were sanitized. Different feature matrix going in = different model coming out. Not leakage, not a split difference — just two slightly different preprocessing implementations of the same logic. The local number (0.8408) is the one to cite since it matches the deployed model.
+
 See [/databricks](./databricks/) for all three notebooks.
 
 ---
@@ -325,7 +327,7 @@ CI/CD runs on GitHub Actions — validates dependencies, runs tests, checks API 
 
 ---
 
-## Monitoring
+## Prediction Distribution Monitoring
 
 A baseline is saved at training time:
 
@@ -414,7 +416,7 @@ That's what uplift modeling solves. You need a dataset with both treated and unt
 Other limitations:
 
 - Value proxy is `monthly_charges × 12`, not actual CLTV
-- Rescue rate is constant across all customers — in reality, some are more persuadable than others
+- Rescue rate is assumed, not measured — scenario analysis run across 10%, 20%, and 30% to bound the profit estimate. No causal estimate is available from observational data alone. A randomized experiment (treatment vs control) would be required to measure the true effect.
 - No saturation modeling — the simulation assumes each additional customer still contributes positive expected value, which won't hold at scale
 
 ---
